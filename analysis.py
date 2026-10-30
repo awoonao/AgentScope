@@ -1,73 +1,107 @@
 import sqlite3
+import statistics
 
 conn = sqlite3.connect("agent_data.db")
 cursor = conn.cursor()
 
-# 1. Total runs
 cursor.execute("""
-    SELECT COUNT(*)
+    SELECT DISTINCT agent_version
     FROM agent_runs
+    ORDER BY agent_version
 """)
 
-total_runs = cursor.fetchone()[0]
+versions = [row[0] for row in cursor.fetchall()]
 
+print("\n========== AGENT PERFORMANCE ==========")
 
-# 2. Success and failure counts
-cursor.execute("""
-    SELECT
-        status,
-        COUNT(*)
-    FROM agent_runs
-    GROUP BY status
-""")
+for version in versions:
 
-status_counts = cursor.fetchall()
+    cursor.execute("""
+        SELECT
+            status,
+            duration_seconds,
+            total_tokens,
+            retry_count,
+            error_type
+        FROM agent_runs
+        WHERE agent_version = ?
+    """, (version,))
 
+    rows = cursor.fetchall()
 
-# 3. Average successful response time
-cursor.execute("""
-    SELECT AVG(duration_seconds)
-    FROM agent_runs
-    WHERE status = 'success'
-""")
+    total = len(rows)
 
-avg_latency = cursor.fetchone()[0]
+    successes = [r for r in rows if r[0] == "success"]
+    failures = [r for r in rows if r[0] == "failed"]
 
+    print(f"\n--- {version.upper()} ---")
 
-# 4. Fastest and slowest successful response
-cursor.execute("""
-    SELECT
-        MIN(duration_seconds),
-        MAX(duration_seconds)
-    FROM agent_runs
-    WHERE status = 'success'
-""")
+    print(f"Total runs: {total}")
 
-min_latency, max_latency = cursor.fetchone()
+    print(
+        f"Success: {len(successes)} "
+        f"({len(successes) / total * 100:.1f}%)"
+    )
 
+    print(
+        f"Failed: {len(failures)} "
+        f"({len(failures) / total * 100:.1f}%)"
+    )
 
-# 5. Average token usage
-cursor.execute("""
-    SELECT AVG(total_tokens)
-    FROM agent_runs
-    WHERE status = 'success'
-""")
+    if successes:
 
-avg_tokens = cursor.fetchone()[0]
+        latencies = [r[1] for r in successes]
 
+        print(
+            f"Average successful latency: "
+            f"{statistics.mean(latencies):.2f}s"
+        )
 
-print("\n--- AGENT V1 ANALYSIS ---\n")
+        print(
+            f"Median successful latency: "
+            f"{statistics.median(latencies):.2f}s"
+        )
 
-print(f"Total runs: {total_runs}")
+        print(
+            f"Min successful latency: "
+            f"{min(latencies):.2f}s"
+        )
 
-print("\nStatus:")
-for status, count in status_counts:
-    percentage = count / total_runs * 100
-    print(f"{status}: {count} ({percentage:.1f}%)")
+        print(
+            f"Max successful latency: "
+            f"{max(latencies):.2f}s"
+        )
 
-print(f"\nAverage successful latency: {avg_latency:.2f} seconds")
-print(f"Fastest successful request: {min_latency:.2f} seconds")
-print(f"Slowest successful request: {max_latency:.2f} seconds")
-print(f"Average tokens per successful request: {avg_tokens:.2f}")
+        tokens = [
+            r[2] for r in successes
+            if r[2] is not None
+        ]
+
+        if tokens:
+            print(
+                f"Average tokens: "
+                f"{statistics.mean(tokens):.2f}"
+            )
+
+    print(
+        f"Total retries: "
+        f"{sum(r[3] for r in rows)}"
+    )
+
+    if failures:
+
+        error_counts = {}
+
+        for row in failures:
+            error = row[4]
+
+            error_counts[error] = (
+                error_counts.get(error, 0) + 1
+            )
+
+        print("Failure types:")
+
+        for error, count in error_counts.items():
+            print(f"  {error}: {count}")
 
 conn.close()

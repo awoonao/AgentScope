@@ -4,6 +4,7 @@ from datetime import datetime
 
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 
 from database import create_database, save_run
 
@@ -12,14 +13,26 @@ load_dotenv(".env")
 
 PROVIDER = "google"
 MODEL = "gemini-3.8-flash"
-AGENT_VERSION = "v1"
+AGENT_VERSION = "v2.1"
+
+MAX_RETRIES = 2
+RETRY_DELAY = 2
+REQUEST_TIMEOUT = 30000
+
 
 api_key = os.getenv("GEMINI_API_KEY")
 
 if not api_key:
     raise ValueError("GEMINI_API_KEY was not found in .env")
 
-client = genai.Client(api_key=api_key)
+
+client = genai.Client(
+    api_key=api_key,
+    http_options=types.HttpOptions(
+        timeout=REQUEST_TIMEOUT
+    )
+)
+
 
 create_database()
 
@@ -37,27 +50,75 @@ def ask_agent(question):
     output_tokens = None
     total_tokens = None
 
-    try:
-        response = client.models.generate_content(
-            model=MODEL,
-            contents=question
-        )
+    retry_count = 0
 
-        answer = response.text
-        status = "success"
+    retryable_errors = {
+        "ServerError",
+        "ConnectError",
+        "ReadError",
+        "ConnectTimeout",
+        "ReadTimeout",
+        "TimeoutException"
+    }
 
-        # Gemini usage metadata
-        if response.usage_metadata:
-            input_tokens = response.usage_metadata.prompt_token_count
-            output_tokens = response.usage_metadata.candidates_token_count
-            total_tokens = response.usage_metadata.total_token_count
+    for attempt in range(MAX_RETRIES + 1):
 
-    except Exception as error:
-        error_type = type(error).__name__
-        error_message = str(error)
+        try:
+            response = client.models.generate_content(
+                model=MODEL,
+                contents=question
+            )
+
+            answer = response.text
+            status = "success"
+
+            error_type = None
+            error_message = None
+
+            if response.usage_metadata:
+                input_tokens = (
+                    response.usage_metadata.prompt_token_count
+                )
+
+                output_tokens = (
+                    response.usage_metadata.candidates_token_count
+                )
+
+                total_tokens = (
+                    response.usage_metadata.total_token_count
+                )
+
+            break
+
+        except Exception as error:
+            error_type = type(error).__name__
+            error_message = str(error)
+
+            if (
+                error_type in retryable_errors
+                and attempt < MAX_RETRIES
+            ):
+                retry_count += 1
+
+                delay = RETRY_DELAY * (
+                    2 ** (retry_count - 1)
+                )
+
+                print(
+                    f"\nTemporary {error_type}. "
+                    f"Retrying in {delay} seconds "
+                    f"(retry {retry_count}/{MAX_RETRIES})..."
+                )
+
+                time.sleep(delay)
+
+            else:
+                break
+
 
     completed_at = datetime.now()
     duration_seconds = time.time() - start_time
+
 
     save_run(
         question=question,
@@ -74,8 +135,9 @@ def ask_agent(question):
         input_tokens=input_tokens,
         output_tokens=output_tokens,
         total_tokens=total_tokens,
-        retry_count=0
+        retry_count=retry_count
     )
+
 
     if status == "success":
         return answer
@@ -83,13 +145,18 @@ def ask_agent(question):
     return f"Request failed: {error_message}"
 
 
-while True:
-    question = input("\nAsk the agent something (or type 'quit'): ")
+if __name__ == "__main__":
 
-    if question.lower() == "quit":
-        break
+    while True:
+        question = input(
+            "\nAsk the agent something "
+            "(or type 'quit'): "
+        )
 
-    answer = ask_agent(question)
+        if question.lower() == "quit":
+            break
 
-    print("\nAgent:")
-    print(answer)
+        answer = ask_agent(question)
+
+        print("\nAgent:")
+        print(answer)
