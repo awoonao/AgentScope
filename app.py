@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
-from database import create_database, save_run
+from database import create_database, save_run, save_attempt
 
 
 load_dotenv(".env")
@@ -51,6 +51,7 @@ def ask_agent(question):
     total_tokens = None
 
     retry_count = 0
+    attempt_logs = []
 
     retryable_errors = {
         "ServerError",
@@ -62,6 +63,9 @@ def ask_agent(question):
     }
 
     for attempt in range(MAX_RETRIES + 1):
+
+        attempt_started_at = datetime.now()
+        attempt_start_time = time.time()
 
         try:
             response = client.models.generate_content(
@@ -88,11 +92,37 @@ def ask_agent(question):
                     response.usage_metadata.total_token_count
                 )
 
+            attempt_completed_at = datetime.now()
+            attempt_duration = time.time() - attempt_start_time
+
+            attempt_logs.append({
+                "attempt_number": attempt + 1,
+                "started_at": attempt_started_at.isoformat(),
+                "completed_at": attempt_completed_at.isoformat(),
+                "duration_seconds": attempt_duration,
+                "status": "success",
+                "error_type": None,
+                "error_message": None
+            })
+
             break
 
         except Exception as error:
             error_type = type(error).__name__
             error_message = str(error)
+
+            attempt_completed_at = datetime.now()
+            attempt_duration = time.time() - attempt_start_time
+
+            attempt_logs.append({
+                "attempt_number": attempt + 1,
+                "started_at": attempt_started_at.isoformat(),
+                "completed_at": attempt_completed_at.isoformat(),
+                "duration_seconds": attempt_duration,
+                "status": "failed",
+                "error_type": error_type,
+                "error_message": error_message
+            })
 
             if (
                 error_type in retryable_errors
@@ -120,7 +150,7 @@ def ask_agent(question):
     duration_seconds = time.time() - start_time
 
 
-    save_run(
+    run_id = save_run(
         question=question,
         answer=answer,
         provider=PROVIDER,
@@ -137,6 +167,18 @@ def ask_agent(question):
         total_tokens=total_tokens,
         retry_count=retry_count
     )
+
+    for attempt_log in attempt_logs:
+        save_attempt(
+            run_id=run_id,
+            attempt_number=attempt_log["attempt_number"],
+            started_at=attempt_log["started_at"],
+            completed_at=attempt_log["completed_at"],
+            duration_seconds=attempt_log["duration_seconds"],
+            status=attempt_log["status"],
+            error_type=attempt_log["error_type"],
+            error_message=attempt_log["error_message"]
+        )
 
 
     if status == "success":

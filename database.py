@@ -34,9 +34,23 @@ def create_database():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS agent_attempts (
+            attempt_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            run_id INTEGER NOT NULL,
+            attempt_number INTEGER NOT NULL,
+            started_at TEXT NOT NULL,
+            completed_at TEXT NOT NULL,
+            duration_seconds REAL NOT NULL,
+            status TEXT NOT NULL,
+            error_type TEXT,
+            error_message TEXT,
+            FOREIGN KEY (run_id) REFERENCES agent_runs(run_id)
+        )
+    """)
+
     conn.commit()
     conn.close()
-
 
 def save_run(
     question,
@@ -95,5 +109,52 @@ def save_run(
         retry_count
     ))
 
+    run_id = cursor.lastrowid
+
     conn.commit()
     conn.close()
+
+    return run_id
+
+def save_attempt(
+    run_id,
+    attempt_number,
+    started_at,
+    completed_at,
+    duration_seconds,
+    status,
+    error_type=None,
+    error_message=None
+):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO agent_attempts (
+            run_id,
+            attempt_number,
+            started_at,
+            completed_at,
+            duration_seconds,
+            status,
+            error_type,
+            error_message
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        run_id,
+        attempt_number,
+        started_at,
+        completed_at,
+        duration_seconds,
+        status,
+        error_type,
+        error_message
+    ))
+
+    conn.commit()
+    conn.close()
+
+if __name__ == "__main__":
+    create_database()
+    print("Database tables created successfully.")
