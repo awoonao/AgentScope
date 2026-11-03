@@ -37,7 +37,12 @@ client = genai.Client(
 create_database()
 
 
-def ask_agent(question):
+def ask_agent(
+    question,
+    task_type=None,
+    benchmark_id=None,
+    prompt_id=None
+):
     started_at = datetime.now()
     start_time = time.time()
 
@@ -149,13 +154,15 @@ def ask_agent(question):
     completed_at = datetime.now()
     duration_seconds = time.time() - start_time
 
-
     run_id = save_run(
         question=question,
         answer=answer,
         provider=PROVIDER,
         model=MODEL,
         agent_version=AGENT_VERSION,
+        task_type=task_type,
+        benchmark_id=benchmark_id,
+        prompt_id=prompt_id,
         started_at=started_at.isoformat(),
         completed_at=completed_at.isoformat(),
         duration_seconds=duration_seconds,

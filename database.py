@@ -17,6 +17,11 @@ def create_database():
             provider TEXT NOT NULL,
             model TEXT NOT NULL,
             agent_version TEXT NOT NULL,
+            benchmark_id TEXT,
+            prompt_id TEXT,
+            task_type TEXT,
+
+            started_at TEXT NOT NULL,
 
             started_at TEXT NOT NULL,
             completed_at TEXT NOT NULL,
@@ -58,6 +63,9 @@ def save_run(
     provider,
     model,
     agent_version,
+    task_type,
+    benchmark_id,
+    prompt_id,
     started_at,
     completed_at,
     duration_seconds,
@@ -79,6 +87,9 @@ def save_run(
             provider,
             model,
             agent_version,
+            task_type,
+            benchmark_id,
+            prompt_id,
             started_at,
             completed_at,
             duration_seconds,
@@ -90,13 +101,16 @@ def save_run(
             total_tokens,
             retry_count
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         question,
         answer,
         provider,
         model,
         agent_version,
+        task_type,
+        benchmark_id,
+        prompt_id,
         started_at,
         completed_at,
         duration_seconds,
