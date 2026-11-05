@@ -132,6 +132,67 @@ col4.metric("Successful-run tokens", f"{total_tokens:,.0f}")
 
 st.divider()
 
+
+st.subheader("Benchmark Performance Comparison")
+
+benchmark_stats = (
+    filtered.groupby(["benchmark_id", "model"])
+    .agg(
+        total_requests=("run_id", "count"),
+        successful=("status", lambda x: (x == "success").sum()),
+        failed=("status", lambda x: (x == "failed").sum())
+    )
+    .reset_index()
+)
+
+benchmark_stats["success_rate"] = (
+    benchmark_stats["successful"]
+    / benchmark_stats["total_requests"] * 100
+).round(1)
+
+latency_stats = (
+    filtered[filtered["status"] == "success"]
+    .groupby(["benchmark_id", "model"])["duration_seconds"]
+    .agg(
+        median_latency="median",
+        p95_latency=lambda x: x.quantile(0.95)
+    )
+    .reset_index()
+)
+
+benchmark_stats = benchmark_stats.merge(
+    latency_stats,
+    on=["benchmark_id", "model"],
+    how="left"
+)
+
+st.dataframe(
+    benchmark_stats,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "success_rate": st.column_config.NumberColumn(
+            "Success rate (%)",
+            format="%.1f%%"
+        ),
+        "median_latency": st.column_config.NumberColumn(
+            "Median latency (s)",
+            format="%.2f"
+        ),
+        "p95_latency": st.column_config.NumberColumn(
+            "P95 latency (s)",
+            format="%.2f"
+        )
+    }
+)
+
+st.caption(
+    "Latency statistics include successful requests only. "
+    "Small sample sizes and different API conditions limit "
+    "comparisons between benchmarks."
+)
+
+
 left, right = st.columns(2)
 
 with left:
