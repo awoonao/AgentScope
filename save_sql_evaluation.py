@@ -3,7 +3,7 @@ import sqlite3
 from evaluate_sql import evaluate_sql
 
 DB_PATH = "agent_data.db"
-EVALUATOR_VERSION = "sql_execution_v1"
+EVALUATOR_VERSION = "sql_execution_v2"
 
 
 def save_sql_evaluation():

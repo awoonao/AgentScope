@@ -340,6 +340,15 @@ def load_evaluations():
 
 evaluations = load_evaluations()
 
+# Keep only the latest evaluator version per run.
+# Evaluation IDs increase as new versions are saved.
+evaluations = (
+    evaluations
+    .sort_values("evaluation_id", ascending=False)
+    .drop_duplicates(subset=["run_id"], keep="first")
+    .copy()
+)
+
 # Apply the same dashboard filters
 evaluations = evaluations[
     evaluations["benchmark_id"].isin(benchmarks)
