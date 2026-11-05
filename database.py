@@ -172,3 +172,40 @@ def save_attempt(
 if __name__ == "__main__":
     create_database()
     print("Database tables created successfully.")
+
+
+def create_evaluations_table():
+    """Create a separate table for answer evaluations."""
+    import sqlite3
+
+    conn = sqlite3.connect("agent_data.db")
+
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS answer_evaluations (
+                evaluation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                expected_answer TEXT NOT NULL,
+                evaluation_result TEXT NOT NULL
+                    CHECK (
+                        evaluation_result IN (
+                            'correct',
+                            'incorrect',
+                            'needs_review'
+                        )
+                    ),
+                evaluator_version TEXT NOT NULL,
+                evaluated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(run_id, evaluator_version)
+            )
+        """)
+
+        conn.commit()
+        print("Answer evaluations table ready.")
+
+    finally:
+        conn.close()
+
+
+if __name__ == "__main__":
+    create_evaluations_table()
