@@ -9,7 +9,6 @@ DB_NAME = "agent_data.db"
 
 st.set_page_config(
     page_title="AI Agent Reliability Analytics",
-    page_icon="📊",
     layout="wide"
 )
 
@@ -106,8 +105,24 @@ success_rate = len(successful) / total * 100
 
 avg_latency = successful["duration_seconds"].mean()
 total_tokens = successful["total_tokens"].sum()
+median_latency = successful["duration_seconds"].median()
+p95_latency = successful["duration_seconds"].quantile(0.95)
 
 col1, col2, col3, col4 = st.columns(4)
+
+st.subheader("Latency performance")
+
+latency_col1, latency_col2 = st.columns(2)
+
+latency_col1.metric(
+    "Median latency (P50)",
+    f"{median_latency:.2f}s" if pd.notna(median_latency) else "N/A"
+)
+
+latency_col2.metric(
+    "P95 latency",
+    f"{p95_latency:.2f}s" if pd.notna(p95_latency) else "N/A"
+)
 
 col1.metric("Total requests", total)
 col2.metric("Success rate", f"{success_rate:.1f}%")
@@ -208,6 +223,17 @@ st.dataframe(
     filtered.drop(columns=["error_message"]),
     use_container_width=True,
     hide_index=True
+)
+
+st.subheader("Export benchmark data")
+
+csv = filtered.to_csv(index=False).encode("utf-8")
+
+st.download_button(
+    label="Download filtered results as CSV",
+    data=csv,
+    file_name="ai_agent_benchmark_results.csv",
+    mime="text/csv"
 )
 
 st.caption(
