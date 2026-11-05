@@ -12,10 +12,11 @@ from database import create_database, save_run, save_attempt
 load_dotenv(".env")
 
 PROVIDER = "google"
-MODEL = "gemini-3.8-flash"
+MODEL = "gemini-3.5-flash-lite"
 AGENT_VERSION = "v2.1"
 
 MAX_RETRIES = 2
+BENCHMARK_MAX_RETRIES = 0
 RETRY_DELAY = 2
 REQUEST_TIMEOUT = 30000
 
@@ -67,7 +68,13 @@ def ask_agent(
         "TimeoutException"
     }
 
-    for attempt in range(MAX_RETRIES + 1):
+    max_retries = (
+        BENCHMARK_MAX_RETRIES
+        if benchmark_id is not None
+        else MAX_RETRIES
+    )
+
+    for attempt in range(max_retries + 1):
 
         attempt_started_at = datetime.now()
         attempt_start_time = time.time()
@@ -131,7 +138,7 @@ def ask_agent(
 
             if (
                 error_type in retryable_errors
-                and attempt < MAX_RETRIES
+                and attempt < max_retries
             ):
                 retry_count += 1
 
@@ -142,7 +149,7 @@ def ask_agent(
                 print(
                     f"\nTemporary {error_type}. "
                     f"Retrying in {delay} seconds "
-                    f"(retry {retry_count}/{MAX_RETRIES})..."
+                    f"(retry {retry_count}/{max_retries})..."
                 )
 
                 time.sleep(delay)

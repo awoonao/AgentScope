@@ -1,4 +1,4 @@
-BENCHMARK_ID = "benchmark_v1"
+BENCHMARK_ID = "benchmark_v3"
 
 BENCHMARK_PROMPTS = [
 
