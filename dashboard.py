@@ -302,3 +302,100 @@ st.caption(
     "not answer correctness. Benchmark conditions and "
     "sample sizes differ."
 )
+
+
+# ==========================================
+# ANSWER QUALITY EVALUATION
+# ==========================================
+
+st.divider()
+st.header("Answer Quality Evaluation")
+
+@st.cache_data(ttl=30)
+def load_evaluations():
+    conn = sqlite3.connect("agent_data.db")
+
+    try:
+        query = """
+            SELECT
+                e.evaluation_id,
+                e.run_id,
+                r.benchmark_id,
+                r.prompt_id,
+                r.model,
+                r.task_type,
+                e.evaluation_result,
+                e.evaluator_version,
+                e.evaluated_at
+            FROM answer_evaluations e
+            JOIN agent_runs r
+                ON e.run_id = r.run_id
+        """
+
+        return pd.read_sql_query(query, conn)
+
+    finally:
+        conn.close()
+
+
+evaluations = load_evaluations()
+
+# Apply the same dashboard filters
+evaluations = evaluations[
+    evaluations["benchmark_id"].isin(benchmarks)
+    & evaluations["model"].isin(models)
+    & evaluations["task_type"].isin(categories)
+]
+
+if evaluations.empty:
+    st.info("No answer evaluations available for these filters.")
+
+else:
+    total_evaluated = len(evaluations)
+
+    correct = (
+        evaluations["evaluation_result"] == "correct"
+    ).sum()
+
+    incorrect = (
+        evaluations["evaluation_result"] == "incorrect"
+    ).sum()
+
+    needs_review = (
+        evaluations["evaluation_result"] == "needs_review"
+    ).sum()
+
+    # Accuracy is calculated only for definitive grades.
+    graded = correct + incorrect
+
+    accuracy = (
+        correct / graded * 100
+        if graded > 0
+        else None
+    )
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("Evaluated responses", total_evaluated)
+    col2.metric("Correct", correct)
+    col3.metric("Incorrect", incorrect)
+    col4.metric("Needs review", needs_review)
+
+    if accuracy is not None:
+        st.metric("Accuracy (graded responses)", f"{accuracy:.1f}%")
+    else:
+        st.info("No definitively graded responses yet.")
+
+    st.caption(
+        f"Accuracy is based on {graded} definitively graded "
+        f"response(s), not all benchmark requests. "
+        "Results are preliminary and depend on evaluator validity."
+    )
+
+    st.subheader("Evaluation Results")
+
+    st.dataframe(
+        evaluations,
+        use_container_width=True,
+        hide_index=True
+    )
