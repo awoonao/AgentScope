@@ -11,6 +11,9 @@ venv/
 __pycache__/
 *.pyc
 
+# test
+.venv-test/
+
 # Local databases
 *.db
 *.db-journal
@@ -25,5 +28,3 @@ Thumbs.db
 # Local temporary files
 .pytest_cache/
 
-# test
-.venv-test/
