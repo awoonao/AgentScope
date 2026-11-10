@@ -24,3 +24,6 @@ Thumbs.db
 
 # Local temporary files
 .pytest_cache/
+
+# test
+.venv-test/
