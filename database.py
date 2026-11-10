@@ -22,8 +22,6 @@ def create_database():
             task_type TEXT,
 
             started_at TEXT NOT NULL,
-
-            started_at TEXT NOT NULL,
             completed_at TEXT NOT NULL,
             duration_seconds REAL NOT NULL,
 
@@ -169,10 +167,6 @@ def save_attempt(
     conn.commit()
     conn.close()
 
-if __name__ == "__main__":
-    create_database()
-    print("Database tables created successfully.")
-
 
 def create_evaluations_table():
     """Create a separate table for answer evaluations."""
@@ -207,5 +201,39 @@ def create_evaluations_table():
         conn.close()
 
 
+def create_rubric_evaluations_table():
+    """Create a table for human-reviewed rubric scores."""
+    import sqlite3
+
+    conn = sqlite3.connect("agent_data.db")
+
+    try:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS rubric_evaluations (
+                rubric_evaluation_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                run_id INTEGER NOT NULL,
+                criterion TEXT NOT NULL,
+                score INTEGER NOT NULL
+                    CHECK (score BETWEEN 0 AND 2),
+                max_score INTEGER NOT NULL DEFAULT 2,
+                evaluator_type TEXT NOT NULL,
+                rubric_version TEXT NOT NULL,
+                notes TEXT,
+                evaluated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(run_id, criterion, rubric_version)
+            )
+        """)
+
+        conn.commit()
+        print("Rubric evaluations table ready.")
+
+    finally:
+        conn.close()
+
+
 if __name__ == "__main__":
+    create_database()
+    print("Database tables created successfully.")
+
     create_evaluations_table()
+    create_rubric_evaluations_table()

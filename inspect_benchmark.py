@@ -12,9 +12,9 @@ try:
             status,
             answer
         FROM agent_runs
-        WHERE prompt_id = ?
+        WHERE prompt_id IN (?, ?)
         ORDER BY run_id DESC
-    """, ("C05",)).fetchall()
+    """, ("W09", "REC05")).fetchall()
 
     if not rows:
         print("No records found for C05.")

@@ -408,3 +408,127 @@ else:
         use_container_width=True,
         hide_index=True
     )
+
+
+# ==========================================
+# RUBRIC EVALUATION ANALYTICS
+# ==========================================
+
+st.divider()
+st.header("Rubric Evaluation Analytics")
+
+
+@st.cache_data(ttl=30)
+def load_rubric_evaluations():
+    conn = sqlite3.connect("agent_data.db")
+
+    try:
+        query = """
+            SELECT
+                e.rubric_evaluation_id,
+                e.run_id,
+                r.benchmark_id,
+                r.prompt_id,
+                r.model,
+                r.task_type,
+                e.criterion,
+                e.score,
+                e.max_score,
+                e.evaluator_type,
+                e.rubric_version,
+                e.notes
+            FROM rubric_evaluations e
+            JOIN agent_runs r
+                ON e.run_id = r.run_id
+        """
+
+        return pd.read_sql_query(query, conn)
+
+    finally:
+        conn.close()
+
+
+rubric_df = load_rubric_evaluations()
+
+# Use the same filters as the main dashboard.
+# 'filtered' already contains the selected benchmark runs.
+rubric_df = rubric_df[
+    rubric_df["run_id"].isin(filtered["run_id"])
+].copy()
+
+if rubric_df.empty:
+    st.info("No rubric evaluations available for these filters.")
+
+else:
+    # Keep the latest saved score for each criterion.
+    rubric_df = (
+        rubric_df
+        .sort_values("rubric_evaluation_id")
+        .drop_duplicates(
+            subset=["run_id", "criterion"],
+            keep="last"
+        )
+    )
+
+    # Calculate total rubric scores per response.
+    rubric_summary = (
+        rubric_df
+        .groupby(
+            ["run_id", "prompt_id", "task_type"],
+            as_index=False
+        )
+        .agg(
+            total_score=("score", "sum"),
+            max_score=("max_score", "sum"),
+            criteria_evaluated=("criterion", "count")
+        )
+    )
+
+    rubric_summary["score_percentage"] = (
+        rubric_summary["total_score"]
+        / rubric_summary["max_score"]
+        * 100
+    ).round(1)
+
+    total_reviewed = len(rubric_summary)
+    avg_score = rubric_summary["score_percentage"].mean()
+
+    col1, col2 = st.columns(2)
+
+    col1.metric("Rubric-reviewed responses", total_reviewed)
+    col2.metric("Average rubric score", f"{avg_score:.1f}%")
+
+    st.subheader("Rubric Scores by Response")
+
+    st.dataframe(
+        rubric_summary,
+        use_container_width=True,
+        hide_index=True
+    )
+
+    st.subheader("Average Rubric Score by Task Category")
+
+    category_scores = (
+        rubric_summary
+        .groupby("task_type", as_index=False)
+        .agg(
+            average_score=("score_percentage", "mean")
+        )
+    )
+
+    st.bar_chart(
+        category_scores.set_index("task_type")["average_score"]
+    )
+
+    with st.expander("View individual rubric criteria"):
+        st.dataframe(
+            rubric_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    st.caption(
+        "Rubric scores are assistant-reviewed assessments. "
+        "They are separate from automated SQL correctness tests. "
+        "Small sample sizes limit conclusions about model quality."
+    )
